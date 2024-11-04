@@ -3,20 +3,24 @@ from dash import dcc, html, Input, Output, State
 import plotly.express as px
 import pandas as pd
 import numpy as np
+import os
 from flask import Flask, session
 from flask_session import Session
-import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Initialize the Flask server and configure sessions
 server = Flask(__name__)
-server.config["SECRET_KEY"] = os.urandom(24)
+server.config["SECRET_KEY"] = "your_fixed_secret_key"  # Set a fixed secret key for session encryption
 server.config["SESSION_TYPE"] = "filesystem"  # Store sessions on the filesystem
-Session(server)  # Initialize session management
+Session(server)  # Initialize Flask-Session
 
 # Initialize the Dash app
 app = dash.Dash(__name__, server=server)
 
-# Initial data for a new session
+# Initial sample data for the 4D scatter plot
 def get_initial_data():
     return pd.DataFrame({
         'Service': ['Broadband Access', 'Mobile Hotspots', 'Online Content', 'IT Support Hotline', 'Tech Delivery'],
@@ -26,7 +30,7 @@ def get_initial_data():
         'Uncertainty': np.random.randint(1, 10, 5)
     }).to_dict("records")
 
-# Set up layout
+# Layout of the app with dropdown, sliders, text input, and buttons
 app.layout = html.Div([
     dcc.Graph(id="3d-scatter"),
     html.Label("Select Existing Service to Edit"),
@@ -54,16 +58,68 @@ def load_session_data(add_clicks, update_clicks):
         session["data"] = get_initial_data()  # Initialize session data
     return session["data"]
 
-# Save session data after changes
+# Callback to update dropdown options and graph based on current data
 @app.callback(
-    Output("3d-scatter", "figure"),
-    Input("data-store", "data"),
-    State("service-dropdown", "value"),
-    State("new-service-name", "value"),
-    # Add more inputs for slider values...
+    [Output("3d-scatter", "figure"),
+     Output("service-dropdown", "options")],
+    [Input("data-store", "data")]
 )
-def update_session_data(data, selected_service, new_service_name):
-    # Modify the session data as needed based on user actions
-    # Update session["data"] here based on actions like add, update, remove
-    session["data"] = data  # Save data back to session
-    # Update graph, dropdown, and options
+def update_graph(data):
+    df_updated = pd.DataFrame(data)  # Create DataFrame from stored data
+    fig = px.scatter_3d(df_updated, x="Urgency", y="Resources", z="Regulations", color="Uncertainty", text="Service")
+    fig.update_traces(marker=dict(size=8))
+    options = [{'label': service, 'value': service} for service in df_updated['Service']]
+    return fig, options
+
+# Callback to handle adding, updating, and removing entries
+@app.callback(
+    Output("data-store", "data"),
+    [Input("add-button", "n_clicks"),
+     Input("update-button", "n_clicks"),
+     Input("remove-button", "n_clicks")],
+    [State("data-store", "data"),
+     State("service-dropdown", "value"),
+     State("new-service-name", "value"),
+     State("urgency-slider", "value"),
+     State("resources-slider", "value"),
+     State("regulations-slider", "value"),
+     State("uncertainty-slider", "value")]
+)
+def modify_data(add_clicks, update_clicks, remove_clicks, data, selected_service, new_service_name, urgency, resources, regulations, uncertainty):
+    df_updated = pd.DataFrame(data)
+
+    # Check which button was clicked
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return data
+    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    if button_id == "add-button" and new_service_name:
+        # Add new service with entered values
+        new_entry = {
+            "Service": new_service_name,  
+            "Urgency": urgency,
+            "Resources": resources,
+            "Regulations": regulations,
+            "Uncertainty": uncertainty
+        }
+        df_updated = pd.concat([df_updated, pd.DataFrame([new_entry])], ignore_index=True)
+
+    elif button_id == "update-button" and selected_service:
+        # Update existing service
+        df_updated.loc[df_updated["Service"] == selected_service, ["Urgency", "Resources", "Regulations", "Uncertainty"]] = [urgency, resources, regulations, uncertainty]
+
+    elif button_id == "remove-button" and selected_service:
+        # Remove selected service
+        df_updated = df_updated[df_updated["Service"] != selected_service]
+
+    session["data"] = df_updated.to_dict("records")  # Save updated data back to session
+    return session["data"]
+
+# Run the app
+if __name__ == "__main__":
+    app.run_server(
+        debug=True,
+        port=int(os.environ.get("PORT", 8080)),  # Use Heroku's assigned port
+        host="0.0.0.0"
+    )
