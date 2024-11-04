@@ -3,6 +3,9 @@ from dash import dcc, html, Input, Output, State
 import plotly.express as px
 import pandas as pd
 import numpy as np
+import os
+from dash import Dash
+
 
 # Initial sample data for the 4D scatter plot
 df = pd.DataFrame({
@@ -14,8 +17,16 @@ df = pd.DataFrame({
 })
 
 # Initialize the Dash app
-app = dash.Dash(__name__)
+app = Dash(__name__)
 
+# your app layout and callback code here...
+
+if __name__ == "__main__":
+    app.run_server(
+        debug=True,
+        port=int(os.environ.get("PORT", 8080)),  # Use $PORT from Heroku, with 8080 as a default for local testing
+        host="0.0.0.0"  # Ensures the app is accessible externally on Heroku
+    )
 # Layout of the app with dropdown, sliders, text input, and buttons
 app.layout = html.Div([
     # Display the 3D scatter plot
