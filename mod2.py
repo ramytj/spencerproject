@@ -61,6 +61,7 @@ app.layout = html.Div([
     dcc.Dropdown(id="service-dropdown", placeholder="Select a service"),
     html.Label("Enter New Service Name"),
     dcc.Input(id="new-service-name", type="text", placeholder="Enter new service name"),
+    html.Br(),
     html.Label("Urgency"),
     dcc.Slider(id="urgency-slider", min=1, max=10, step=1, value=5),
     html.Label("Resources"),
